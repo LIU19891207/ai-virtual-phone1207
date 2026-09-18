@@ -17,8 +17,10 @@ import { kvGet, kvSet, registerKvMigration } from "./kv-db";
 
 const STORAGE_KEY = "ai_phone_calendar_plans_v1";
 const CALENDAR_CONFIG_KEY = "ai_phone_calendar_config_v1";
+const CALENDAR_OWNER_YEAR_KEY = "ai_phone_calendar_owner_years_v1";
 registerKvMigration(STORAGE_KEY);
 registerKvMigration(CALENDAR_CONFIG_KEY);
+registerKvMigration(CALENDAR_OWNER_YEAR_KEY);
 
 type PersistedCalendarStore = {
   plans: CalendarWeekPlan[];
@@ -391,4 +393,23 @@ export function getCalendarOwnerLabel(ownerType: CalendarOwnerType, ownerName: s
 
 export function getCalendarOwnerKey(ownerType: CalendarOwnerType, ownerId: string): string {
   return getOwnerStorageKey(ownerType, ownerId);
+}
+
+export function loadOwnerYearOffsets(): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = kvGet(CALENDAR_OWNER_YEAR_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) || {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveOwnerYearOffset(ownerType: CalendarOwnerType, ownerId: string, yearOffset: number): void {
+  if (typeof window === "undefined") return;
+  const current = loadOwnerYearOffsets();
+  const key = getOwnerStorageKey(ownerType, ownerId);
+  current[key] = yearOffset;
+  kvSet(CALENDAR_OWNER_YEAR_KEY, JSON.stringify(current));
 }

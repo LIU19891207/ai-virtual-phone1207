@@ -15,7 +15,9 @@ import {
   deleteCalendarScheduleItem,
   loadCalendarConfig,
   loadOwnerCalendarPlans,
+  loadOwnerYearOffsets,
   saveCalendarConfig,
+  saveOwnerYearOffset,
   upsertCalendarScheduleItem,
   validateScheduleDraft,
 } from "@/lib/calendar-storage";
@@ -47,6 +49,7 @@ import {
 import { CalendarMonthPage } from "./calendar/month-page";
 import { CalendarDetailPage } from "./calendar/detail-page";
 import { CalendarEventEditModal, type CalendarEventDraft } from "./calendar/event-edit-modal";
+import { CalendarYearPickerModal } from "./calendar/year-picker-modal";
 
 type OwnerOption = {
   key: string;
@@ -141,6 +144,8 @@ export function PhoneCalendarApp({
   const [config, setConfig] = useState(() => loadCalendarConfig());
   const [menstrualConfig, setMenstrualConfig] = useState(() => loadMenstrualConfig());
   const [menstrualRecords, setMenstrualRecords] = useState<MenstrualRecord[]>(() => loadMenstrualRecords());
+  const [ownerYearOffsets, setOwnerYearOffsets] = useState<Record<string, number>>(() => loadOwnerYearOffsets());
+  const [showYearPicker, setShowYearPicker] = useState(false);
   const [showThemePanel, setShowThemePanel] = useState(false);
   const [showDaysPanel, setShowDaysPanel] = useState(false);
   const [showMenstrualSettings, setShowMenstrualSettings] = useState(false);
@@ -197,6 +202,11 @@ export function PhoneCalendarApp({
     () => owners.find(owner => owner.key === selectedKey) ?? owners[0] ?? null,
     [owners, selectedKey],
   );
+
+  const currentYearOffset = useMemo(() => {
+    if (!selectedOwner) return 0;
+    return ownerYearOffsets[selectedOwner.key] ?? 0;
+  }, [selectedOwner, ownerYearOffsets]);
   const weekStart = useMemo(() => getWeekStartIso(parseIsoDate(selectedDate)), [selectedDate]);
 
   const itemsByDate = useMemo(() => {
@@ -528,6 +538,8 @@ export function PhoneCalendarApp({
         {view === "month" ? (
           <CalendarMonthPage
             todayIso={todayIso}
+            yearOffset={currentYearOffset}
+            onOpenYearPicker={() => setShowYearPicker(true)}
             itemsByDate={itemsByDate}
             cycleMap={cycleMap}
             ownerStrip={ownerStrip}
@@ -711,6 +723,23 @@ export function PhoneCalendarApp({
             </div>
           </div>
         </div>
+      )}
+
+      {showYearPicker && selectedOwner && (
+        <CalendarYearPickerModal
+          currentYear={new Date().getFullYear() + currentYearOffset}
+          onSave={selectedYear => {
+            const realYear = new Date().getFullYear();
+            const offset = selectedYear - realYear;
+            if (selectedOwner) {
+              saveOwnerYearOffset(selectedOwner.ownerType, selectedOwner.ownerId, offset);
+              setOwnerYearOffsets(loadOwnerYearOffsets());
+            }
+            setShowYearPicker(false);
+            onNotice?.(`已设置 ${selectedOwner.name} 的日历年份为 ${selectedYear} 年`);
+          }}
+          onClose={() => setShowYearPicker(false)}
+        />
       )}
 
       {editingItem && (

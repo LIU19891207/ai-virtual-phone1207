@@ -1506,6 +1506,68 @@
   background: var(--c-calendar-surface-2);
 }
 
+/* ── 年份选择器 ── */
+.calendar-year-title-btn {
+  font-weight: 700;
+  font-size: calc(15px * var(--app-text-scale, 1));
+  cursor: pointer;
+}
+
+.calendar-year-picker-modal {
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-year-scroll-container {
+  height: 220px;
+  overflow-y: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 12px 0;
+  border-top: 1px solid var(--c-calendar-hair);
+  border-bottom: 1px solid var(--c-calendar-hair);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.calendar-year-scroll-spacer {
+  height: 80px;
+  flex-shrink: 0;
+}
+
+.calendar-year-picker-item {
+  width: 100%;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--c-calendar-sub);
+  font-size: calc(16px * var(--app-text-scale, 1));
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.calendar-year-picker-item.is-selected {
+  color: var(--c-calendar-ink);
+  font-size: calc(20px * var(--app-text-scale, 1));
+  font-weight: 700;
+  background: var(--c-calendar-surface-2);
+  border-radius: 8px;
+}
+
+.calendar-year-picker-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 /* ── 动效降级 ── */
 @media (prefers-reduced-motion: reduce) {
   .calendar-icon-btn:active,

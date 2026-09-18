@@ -27,11 +27,12 @@ type MonthBlock = {
 };
 
 /** 构建 today ±12 个月的月历数据（农历只算一次） */
-function buildMonths(todayIso: string): MonthBlock[] {
+function buildMonths(todayIso: string, yearOffset: number = 0): MonthBlock[] {
   const today = new Date(`${todayIso}T00:00:00`);
+  const baseYear = today.getFullYear() + yearOffset;
   const blocks: MonthBlock[] = [];
   for (let m = -12; m <= 12; m++) {
-    const first = new Date(today.getFullYear(), today.getMonth() + m, 1);
+    const first = new Date(baseYear, today.getMonth() + m, 1);
     const year = first.getFullYear();
     const month = first.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -60,6 +61,8 @@ function buildMonths(todayIso: string): MonthBlock[] {
 
 export function CalendarMonthPage({
   todayIso,
+  yearOffset = 0,
+  onOpenYearPicker,
   itemsByDate,
   cycleMap,
   ownerStrip,
@@ -68,6 +71,8 @@ export function CalendarMonthPage({
   onOpenTheme,
 }: {
   todayIso: string;
+  yearOffset?: number;
+  onOpenYearPicker?: () => void;
   itemsByDate: Map<string, CalendarScheduleItem[]>;
   cycleMap: Map<string, MenstrualDayState> | null;
   ownerStrip: ReactNode;
@@ -75,11 +80,12 @@ export function CalendarMonthPage({
   onClose: () => void;
   onOpenTheme: () => void;
 }) {
-  const months = useMemo(() => buildMonths(todayIso), [todayIso]);
+  const months = useMemo(() => buildMonths(todayIso, yearOffset), [todayIso, yearOffset]);
   const todayYm = useMemo(() => {
     const d = new Date(`${todayIso}T00:00:00`);
-    return `${d.getFullYear()}-${d.getMonth()}`;
-  }, [todayIso]);
+    const displayYear = d.getFullYear() + yearOffset;
+    return `${displayYear}-${d.getMonth()}`;
+  }, [todayIso, yearOffset]);
   const [titleYm, setTitleYm] = useState(todayYm);
   const scrollRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -184,6 +190,8 @@ export function CalendarMonthPage({
         <div className="calendar-apple-topbar">
           <button type="button" className="calendar-pill-btn calendar-back-btn" onClick={onClose} aria-label="返回桌面">
             <ChevronLeft size={19} />
+          </button>
+          <button type="button" className="calendar-pill-btn calendar-year-title-btn" onClick={onOpenYearPicker} aria-label="修改年份">
             {titleYear}年
           </button>
           <span className="calendar-topbar-space" />
