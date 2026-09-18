@@ -81,11 +81,19 @@ export function CalendarMonthPage({
   onOpenTheme: () => void;
 }) {
   const months = useMemo(() => buildMonths(todayIso, yearOffset), [todayIso, yearOffset]);
-  const todayYm = useMemo(() => {
+  const virtualTodayIso = useMemo(() => {
     const d = new Date(`${todayIso}T00:00:00`);
     const displayYear = d.getFullYear() + yearOffset;
-    return `${displayYear}-${d.getMonth()}`;
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${displayYear}-${m}-${day}`;
   }, [todayIso, yearOffset]);
+
+  const todayYm = useMemo(() => {
+    const d = new Date(`${virtualTodayIso}T00:00:00`);
+    return `${d.getFullYear()}-${d.getMonth()}`;
+  }, [virtualTodayIso]);
+
   const [titleYm, setTitleYm] = useState(todayYm);
   const scrollRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -114,14 +122,13 @@ export function CalendarMonthPage({
     setTitleYm(ym);
   };
 
-  // 首次定位到当前月（等 header 量高后）
-  const didInitRef = useRef(false);
+  // 切换对象/年份改变时同步定位并刷新标题
   useEffect(() => {
-    if (didInitRef.current || headerH === 0) return;
-    didInitRef.current = true;
-    requestAnimationFrame(() => scrollToYm(todayYm, false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [headerH]);
+    setTitleYm(todayYm);
+    if (headerH > 0) {
+      requestAnimationFrame(() => scrollToYm(todayYm, false));
+    }
+  }, [todayYm, headerH]);
 
   const handleScroll = () => {
     if (tickingRef.current) return;
@@ -165,7 +172,7 @@ export function CalendarMonthPage({
                       key={cell.iso}
                       type="button"
                       className="calendar-month-cell"
-                      data-today={cell.iso === todayIso ? "true" : undefined}
+                      data-today={cell.iso === virtualTodayIso ? "true" : undefined}
                       style={{ gridColumnStart: cell.weekday + 1 }}
                       aria-label={`${block.month + 1}月${cell.day}日${items?.length ? `，${items.length}个日程` : ""}`}
                       onClick={() => onPickDay(cell.iso)}
