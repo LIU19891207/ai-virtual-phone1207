@@ -61,10 +61,28 @@ function buildSyntheticUserCharacter(identity: UserIdentity | null): Character {
 
 function buildCalendarTriggerInstruction(ownerName: string, weekDates: string[]): string {
   return [
-    `请为${ownerName}生成 ${weekDates[0]} 到 ${weekDates[6]} 这一周的日程安排。`,
-    "请参考已有日程，生成这一周的完整日程安排。",
-    "每行一条，格式：YYYY-MM-DD|周几|开始时间|结束时间|地点|emoji|事项。emoji 段填一个最贴合该事项的表情符号。",
-    "作息时间不受限制（早起、夜跑、通宵都可以安排），但每一天最多 5 条日程，宁缺毋滥。",
+    `请为${ownerName}生成 ${weekDates[0]} 到 ${weekDates[6]} 这一周的完整详细日程安排。`,
+    "【规范要求】",
+    "1. 标签规范：每条日程的标题开头必须带标签，格式为：【事态属性/时间跨度/发生模式】，其中：",
+    "   - 事态属性：正务 或 闲娱",
+    "   - 时间跨度：短时 或 长程",
+    "   - 发生模式：临起 或 预筹",
+    "2. 详细要素：标题必须具体明确，必须包含以下5大要素：",
+    "   - 出行/交通方式（如：乘JR新干线721次、打车、步行、驾车等）",
+    "   - 同行人（如：携团队、与XX同行、独行）",
+    "   - 目的地（精确到活动范围，如：东京至京都、京都府厅）",
+    "   - 具体事项（如：办理文旅产业联动共建合作项目备案事宜）",
+    "   - 预计耗时（短时事件必须精确到小时和整数分钟；长程事件说明天数/时间段）",
+    "   - 示例：【正务/长程/预筹】乘JR新干线721次东京至京都，携团队前往京都府厅办理文旅产业联动共建合作项目备案事宜，预计耗时三天。",
+    "3. 长程与短时联动（父子层级）：",
+    "   - 遇到多日出差、旅行、项目实施等，须先生成一条【长程】日程主卡片（如 span=长程）。",
+    "   - 长程如果跨多天，每天长程主标题须体现当天阶段目标（如：【正务/长程/预筹】京都府厅递交备案材料，开展首轮业务磋商）。",
+    "   - 在长程时间段内发生的具体时刻节点，生成为【短时】日程（如 span=短时，精确到 HH:MM 时间点）。",
+    "4. 输出格式（每行一条 Pipe 分隔）：",
+    "   YYYY-MM-DD|开始时间|结束时间|地点|属性(正务/闲娱)|跨度(短时/长程)|模式(临起/预筹)|emoji|标题",
+    "   例如：",
+    "   2023-09-12|13:00|18:00|京都|正务|长程|预筹|💼|【正务/长程/预筹】乘JR新干线721次东京至京都，携团队前往京都府厅办理文旅产业联动共建合作项目备案事宜，预计耗时三天。",
+    "   2023-09-12|13:00|15:15|东京至京都|正务|短时|预筹|🚆|【正务/短时/预筹】乘JR新干线721次由东京出发奔赴京都，携团队同行，预计耗时2小时15分钟。",
   ].join("\n");
 }
 
@@ -88,6 +106,9 @@ function parseScheduleLines(rawText: string, weekStart: string): CalendarSchedul
     endTime: string;
     location: string;
     title: string;
+    attribute?: import("./calendar-types").CalendarScheduleAttribute;
+    span?: import("./calendar-types").CalendarScheduleSpan;
+    mode?: import("./calendar-types").CalendarScheduleMode;
     emoji?: string;
   }> = [];
 
@@ -98,31 +119,61 @@ function parseScheduleLines(rawText: string, weekStart: string): CalendarSchedul
       .trim();
     if (!line.includes("|")) continue;
     const parts = line.split("|").map(part => part.trim());
-    if (parts.length < 6) continue;
+    
+    // 支持 9 段新格式: YYYY-MM-DD | startTime | endTime | location | attribute | span | mode | emoji | title
+    // 也兼容旧格式 (6或7段)
+    let date = "";
+    let startTime = "";
+    let endTime = "";
+    let location = "";
+    let attribute: import("./calendar-types").CalendarScheduleAttribute | undefined;
+    let span: import("./calendar-types").CalendarScheduleSpan | undefined;
+    let mode: import("./calendar-types").CalendarScheduleMode | undefined;
+    let emoji = "";
+    let title = "";
 
-    const date = parts[0];
-    const startTime = normalizeTime(parts[2]);
-    const endTime = normalizeTime(parts[3]);
+    if (parts.length >= 9) {
+      date = parts[0];
+      startTime = normalizeTime(parts[1]) || parts[1];
+      endTime = normalizeTime(parts[2]) || parts[2];
+      location = parts[3] === "无" ? "" : parts[3];
+      attribute = (parts[4] === "正务" || parts[4] === "闲娱") ? parts[4] : undefined;
+      span = (parts[5] === "短时" || parts[5] === "长程") ? parts[5] : undefined;
+      mode = (parts[6] === "临起" || parts[6] === "预筹") ? parts[6] : undefined;
+      emoji = sanitizeScheduleEmoji(parts[7]);
+      title = parts.slice(8).join("|");
+    } else if (parts.length >= 6) {
+      date = parts[0];
+      // 检查 parts[1] 是周几还是 startTime
+      const isPart1Time = /^\d{1,2}:\d{2}$/.test(parts[1]);
+      const timeIdx = isPart1Time ? 1 : 2;
+      startTime = normalizeTime(parts[timeIdx]) || parts[timeIdx];
+      endTime = normalizeTime(parts[timeIdx + 1]) || parts[timeIdx + 1];
+      location = parts[timeIdx + 2] === "无" ? "" : parts[timeIdx + 2];
+      
+      const remaining = parts.slice(timeIdx + 3);
+      if (remaining.length >= 2) {
+        emoji = sanitizeScheduleEmoji(remaining[0]);
+        title = remaining.slice(1).join("|");
+      } else {
+        title = remaining[0] || "";
+      }
+    }
+
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !weekDates.has(date)) continue;
     if (!startTime || !endTime || !isCalendarTimeRangeAllowed(startTime, endTime)) continue;
-
-    const location = parts[4] === "无" ? "" : parts[4];
-    // 新格式第 6 段为 emoji（YYYY-MM-DD|周几|开始|结束|地点|emoji|事项）；
-    // 兼容旧格式（第 6 段直接是事项）：仅当该段确实是 emoji 时才按新格式取。
-    let emoji = "";
-    let title: string;
-    if (parts.length >= 7) {
-      const candidate = sanitizeScheduleEmoji(parts[5]);
-      if (candidate && Array.from(parts[5]).length <= 3) {
-        emoji = candidate;
-        title = parts.slice(6).join("|");
-      } else {
-        title = parts.slice(5).join("|");
-      }
-    } else {
-      title = parts[5];
-    }
     if (!title.trim()) continue;
+
+    // 从标题中提取 【属性/跨度/模式】 标签
+    const tagMatch = title.match(/^【(正务|闲娱)\/(短时|长程)\/(临起|预筹)】/);
+    if (tagMatch) {
+      attribute = attribute || (tagMatch[1] as import("./calendar-types").CalendarScheduleAttribute);
+      span = span || (tagMatch[2] as import("./calendar-types").CalendarScheduleSpan);
+      mode = mode || (tagMatch[3] as import("./calendar-types").CalendarScheduleMode);
+    } else if (attribute && span && mode) {
+      // 自动补全标题前缀
+      title = `【${attribute}/${span}/${mode}】${title}`;
+    }
 
     parsed.push({
       date,
@@ -130,6 +181,9 @@ function parseScheduleLines(rawText: string, weekStart: string): CalendarSchedul
       endTime,
       location,
       title,
+      attribute,
+      span,
+      mode,
       emoji,
     });
   }

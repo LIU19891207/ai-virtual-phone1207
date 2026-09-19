@@ -190,6 +190,10 @@ export function upsertCalendarScheduleItem(
     endTime: item.endTime,
     location: item.location.trim(),
     title: item.title.trim(),
+    attribute: item.attribute,
+    span: item.span,
+    mode: item.mode,
+    parentId: item.parentId,
     emoji: sanitizeScheduleEmoji(item.emoji),
     colorKey: item.colorKey || pickScheduleColorKey(item.startTime),
     source: item.source,
@@ -317,11 +321,16 @@ export function buildCalendarScheduleMarker(
 
 export function normalizeGeneratedScheduleItems(
   rawItems: Array<{
+    id?: string;
     date: string;
     startTime: string;
     endTime: string;
     location: string;
     title: string;
+    attribute?: import("./calendar-types").CalendarScheduleAttribute;
+    span?: import("./calendar-types").CalendarScheduleSpan;
+    mode?: import("./calendar-types").CalendarScheduleMode;
+    parentId?: string;
     emoji?: string;
     colorKey?: CalendarColorKey;
   }>,
@@ -330,13 +339,17 @@ export function normalizeGeneratedScheduleItems(
   return sortScheduleItems(
     rawItems
       .map(item => ({
-        id: `calendar_item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        id: item.id || `calendar_item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         date: item.date,
         weekday: getWeekdayLabel(item.date),
         startTime: normalizeTime(item.startTime) || item.startTime,
         endTime: normalizeTime(item.endTime) || item.endTime,
         location: item.location.trim(),
         title: item.title.trim(),
+        attribute: item.attribute,
+        span: item.span,
+        mode: item.mode,
+        parentId: item.parentId,
         emoji: sanitizeScheduleEmoji(item.emoji),
         colorKey: isCalendarColorKey(item.colorKey) ? item.colorKey : pickScheduleColorKey(item.startTime),
         source: "generated" as const,

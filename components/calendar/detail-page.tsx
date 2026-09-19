@@ -29,6 +29,12 @@ type PositionedEvent = {
 };
 
 /** 重叠事件“列分配”布局 */
+function isLongSpanItem(item: CalendarScheduleItem): boolean {
+  if (item.span === "长程") return true;
+  if (item.title.includes("【长程】") || item.title.includes("/长程/")) return true;
+  return false;
+}
+
 function layoutDayEvents(items: CalendarScheduleItem[]): PositionedEvent[] {
   const sorted = [...items]
     .map(item => ({
@@ -422,29 +428,35 @@ export function CalendarDetailPage({
                     {iso === todayIso ? (
                       <i className="calendar-now-line" style={{ top: `${nowTop}px` }} aria-hidden="true" />
                     ) : null}
-                    {positioned.map(pos => (
-                      <button
-                        key={pos.item.id}
-                        type="button"
-                        className="calendar-tl-event"
-                        data-color={pos.item.colorKey}
-                        style={{
-                          top: `${pos.top}px`,
-                          height: `${pos.height}px`,
-                          left: `calc(${pos.left}% + 3px)`,
-                          width: `calc(${pos.width}% - 6px)`,
-                        }}
-                        onClick={() => onEditItem(pos.item)}
-                        aria-label={`${pos.item.startTime} ${pos.item.title}`}
-                      >
-                        <b>{pos.item.emoji ? `${pos.item.emoji} ` : ""}{pos.item.title}</b>
-                        <span>
-                          {pos.item.startTime}–{pos.item.endTime}
-                          {pos.item.location ? ` · ${pos.item.location}` : ""}
-                          {pos.item.source === "generated" ? " · AI" : ""}
-                        </span>
-                      </button>
-                    ))}
+                    {positioned.map(pos => {
+                      const isLong = isLongSpanItem(pos.item);
+                      return (
+                        <button
+                          key={pos.item.id}
+                          type="button"
+                          className="calendar-tl-event"
+                          data-color={pos.item.colorKey}
+                          data-span={isLong ? "long" : "short"}
+                          style={{
+                            top: `${pos.top}px`,
+                            height: `${pos.height}px`,
+                            left: isLong ? `2px` : `calc(${pos.left}% + 3px)`,
+                            width: isLong ? `calc(100% - 4px)` : `calc(${pos.width}% - 6px)`,
+                            zIndex: isLong ? 1 : 2,
+                          }}
+                          onClick={() => onEditItem(pos.item)}
+                          aria-label={`${pos.item.startTime} ${pos.item.title}`}
+                        >
+                          <b>{pos.item.emoji ? `${pos.item.emoji} ` : ""}{pos.item.title}</b>
+                          <span>
+                            {pos.item.startTime}–{pos.item.endTime}
+                            {pos.item.location ? ` · ${pos.item.location}` : ""}
+                            {isLong ? " · [长程主框架]" : ""}
+                            {pos.item.source === "generated" ? " · AI" : ""}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               );

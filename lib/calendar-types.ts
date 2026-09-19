@@ -10,6 +10,10 @@ export type CalendarColorKey =
   | "slate"
   | "lilac";
 
+export type CalendarScheduleAttribute = "正务" | "闲娱";
+export type CalendarScheduleSpan = "短时" | "长程";
+export type CalendarScheduleMode = "临起" | "预筹";
+
 export type CalendarScheduleItem = {
   id: string;
   date: string;       // YYYY-MM-DD
@@ -18,6 +22,14 @@ export type CalendarScheduleItem = {
   endTime: string;    // HH:MM
   location: string;
   title: string;
+  /** 事态属性：正务/闲娱 */
+  attribute?: CalendarScheduleAttribute;
+  /** 时间跨度：短时/长程 */
+  span?: CalendarScheduleSpan;
+  /** 发生模式：临起/预筹 */
+  mode?: CalendarScheduleMode;
+  /** 关联的长程日程 ID（短时日程归属于长程时使用） */
+  parentId?: string;
   /** 事项 emoji 图标（可选，一个 emoji） */
   emoji?: string;
   colorKey: CalendarColorKey;

@@ -707,6 +707,20 @@
   flex-shrink: 0;
 }
 
+/* 长程日程跨度背景与高亮框 */
+.calendar-tl-event[data-span="long"] {
+  border-left-width: 6px !important;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  font-weight: 700;
+  opacity: 0.94;
+}
+
+.calendar-tl-event[data-span="long"] b {
+  font-size: calc(13px * var(--app-text-scale, 1));
+  line-height: 1.3;
+}
+
 .calendar-tl-event span {
   flex-shrink: 1;
   min-height: 0;
