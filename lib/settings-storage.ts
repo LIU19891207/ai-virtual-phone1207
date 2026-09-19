@@ -186,21 +186,32 @@ export function loadPresets(): PresetConfig[] {
         let shouldPersistCleanup = JSON.stringify(cachedPresets) !== JSON.stringify(presets);
 
         // Ensure built-in preset exists and is up-to-date
+        const builtinTemplate = createBuiltinPreset();
+        const freshCalendarPrompt = builtinTemplate.prompts?.find(p => p.identifier === "calendar_plan_generation");
+
         const existingBuiltin = presets.find(p => p.builtIn);
         if (!existingBuiltin) {
-            const builtin = createBuiltinPreset();
-            presets.unshift(builtin);
+            presets.unshift(builtinTemplate);
             savePresets(presets);
             shouldPersistCleanup = false;
-        } else if ((existingBuiltin.builtInVersion ?? 0) < BUILTIN_PRESET_VERSION) {
-            const fresh = preserveCustomAppPresetPrompts(createBuiltinPreset(), existingBuiltin);
-            fresh.id = existingBuiltin.id;
-            const idx = presets.indexOf(existingBuiltin);
-            presets[idx] = fresh;
+        } else {
+            // 每次加载时强行用最新的出厂 calendar_plan_generation 覆盖用户本地缓存，防止旧预设提示词污染 AI 输出
+            if (freshCalendarPrompt && existingBuiltin.prompts) {
+                const targetIdx = existingBuiltin.prompts.findIndex(p => p.identifier === "calendar_plan_generation");
+                if (targetIdx >= 0) {
+                    existingBuiltin.prompts[targetIdx] = { ...freshCalendarPrompt };
+                } else {
+                    existingBuiltin.prompts.push({ ...freshCalendarPrompt });
+                }
+            }
+            if ((existingBuiltin.builtInVersion ?? 0) < BUILTIN_PRESET_VERSION) {
+                const fresh = preserveCustomAppPresetPrompts(createBuiltinPreset(), existingBuiltin);
+                fresh.id = existingBuiltin.id;
+                const idx = presets.indexOf(existingBuiltin);
+                presets[idx] = fresh;
+            }
             savePresets(presets);
             shouldPersistCleanup = false;
-        } else if (shouldPersistCleanup) {
-            savePresets(presets);
         }
 
         return presets;

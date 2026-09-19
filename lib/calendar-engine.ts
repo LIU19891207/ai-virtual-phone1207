@@ -199,7 +199,58 @@ function parseScheduleLines(rawText: string, weekStart: string): CalendarSchedul
     });
   }
 
-  return normalizeGeneratedScheduleItems(parsed);
+  // 硬核归并机制：按日期收敛短时与长程
+  const finalItems: typeof parsed = [];
+  const dateGroups = new Map<string, typeof parsed>();
+  for (const item of parsed) {
+    const list = dateGroups.get(item.date) || [];
+    list.push(item);
+    dateGroups.set(item.date, list);
+  }
+
+  for (const [_, dayItems] of dateGroups.entries()) {
+    const longItem = dayItems.find(i => i.span === "长程" || i.title.includes("长程"));
+    if (!longItem) {
+      finalItems.push(...dayItems);
+      continue;
+    }
+
+    const mergedSubNodes = [...(longItem.subNodes || [])];
+    const longStartMin = timeToMinutes(longItem.startTime);
+    const longEndMin = timeToMinutes(longItem.endTime);
+
+    for (const item of dayItems) {
+      if (item === longItem) continue;
+      const itemStartMin = timeToMinutes(item.startTime);
+      const itemEndMin = timeToMinutes(item.endTime);
+
+      // 只要处于长程时间范围内（无论是否标记为短时），除非它是跨天的新长程，否则一律强行合并为长程的内部 subNode！
+      if (itemStartMin >= longStartMin && itemEndMin <= longEndMin && item.span !== "长程") {
+        const cleanText = item.title.replace(/^【.*?】/, "").trim();
+        mergedSubNodes.push({
+          time: item.startTime,
+          text: cleanText,
+        });
+      } else {
+        finalItems.push(item);
+      }
+    }
+
+    // 按时间点去重与升序排序
+    const uniqueMap = new Map<string, string>();
+    for (const sub of mergedSubNodes) {
+      const key = `${sub.time || ""}_${sub.text}`;
+      uniqueMap.set(key, sub.text);
+    }
+    longItem.subNodes = Array.from(uniqueMap.entries()).map(([k, text]) => {
+      const time = k.split("_")[0];
+      return { time: time || undefined, text };
+    }).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+
+    finalItems.push(longItem);
+  }
+
+  return normalizeGeneratedScheduleItems(finalItems);
 }
 
 async function resolveCalendarAssemblerInput(
