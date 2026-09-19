@@ -194,6 +194,7 @@ export function upsertCalendarScheduleItem(
     span: item.span,
     mode: item.mode,
     parentId: item.parentId,
+    subNodes: item.subNodes,
     emoji: sanitizeScheduleEmoji(item.emoji),
     colorKey: item.colorKey || pickScheduleColorKey(item.startTime),
     source: item.source,
@@ -331,6 +332,7 @@ export function normalizeGeneratedScheduleItems(
     span?: import("./calendar-types").CalendarScheduleSpan;
     mode?: import("./calendar-types").CalendarScheduleMode;
     parentId?: string;
+    subNodes?: import("./calendar-types").CalendarSubNode[];
     emoji?: string;
     colorKey?: CalendarColorKey;
   }>,

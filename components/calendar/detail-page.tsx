@@ -36,19 +36,68 @@ function isLongSpanItem(item: CalendarScheduleItem): boolean {
 }
 
 function layoutDayEvents(items: CalendarScheduleItem[]): PositionedEvent[] {
-  const sorted = [...items]
-    .map(item => ({
-      item,
-      start: timeToMinutes(item.startTime),
-      end: Math.max(timeToMinutes(item.endTime), timeToMinutes(item.startTime) + 25),
-    }))
-    .filter(entry => !Number.isNaN(entry.start) && !Number.isNaN(entry.end))
-    .sort((a, b) => a.start - b.start || a.end - b.end);
+  // 找出所有独立短时事项与长程事项
+  const parsedItems = items.map(item => ({
+    item,
+    isLong: isLongSpanItem(item),
+    start: timeToMinutes(item.startTime),
+    end: Math.max(timeToMinutes(item.endTime), timeToMinutes(item.startTime) + 25),
+  })).filter(entry => !Number.isNaN(entry.start) && !Number.isNaN(entry.end));
+
+  const longEntries = parsedItems.filter(e => e.isLong);
+  const shortEntries = parsedItems.filter(e => !e.isLong);
 
   const results: PositionedEvent[] = [];
+
+  // 1. 处理长程事项：若被独立短时事项打断，切分成多段显示
+  for (const longE of longEntries) {
+    // 找出在当前长程时间范围内的独立短时事项（按时间排序）
+    const overlappingShorts = shortEntries
+      .filter(s => s.start < longE.end && s.end > longE.start)
+      .sort((a, b) => a.start - b.start);
+
+    if (overlappingShorts.length === 0) {
+      results.push({
+        item: longE.item,
+        top: (longE.start / 60) * HOUR_H,
+        height: Math.max(((longE.end - longE.start) / 60) * HOUR_H - 2, 20),
+        left: 0,
+        width: 100,
+      });
+    } else {
+      // 存在短时打断，切割长程区间
+      let curStart = longE.start;
+      for (const s of overlappingShorts) {
+        if (s.start > curStart) {
+          // 在短时开始之前的一段长程卡片
+          results.push({
+            item: longE.item,
+            top: (curStart / 60) * HOUR_H,
+            height: Math.max(((s.start - curStart) / 60) * HOUR_H - 2, 20),
+            left: 0,
+            width: 100,
+          });
+        }
+        curStart = Math.max(curStart, s.end);
+      }
+      if (curStart < longE.end) {
+        // 短时全部结束后恢复的长程卡片
+        results.push({
+          item: longE.item,
+          top: (curStart / 60) * HOUR_H,
+          height: Math.max(((longE.end - curStart) / 60) * HOUR_H - 2, 20),
+          left: 0,
+          width: 100,
+        });
+      }
+    }
+  }
+
+  // 2. 短时事项独立排布
+  const sortedShorts = [...shortEntries].sort((a, b) => a.start - b.start || a.end - b.end);
   let clusterMaxEnd = -1;
   let columnEnds: number[] = [];
-  let clusterEntries: Array<{ entry: (typeof sorted)[number]; column: number }> = [];
+  let clusterEntries: Array<{ entry: (typeof sortedShorts)[number]; column: number }> = [];
 
   const flush = () => {
     const columnCount = Math.max(columnEnds.length, 1);
@@ -65,7 +114,7 @@ function layoutDayEvents(items: CalendarScheduleItem[]): PositionedEvent[] {
     clusterEntries = [];
   };
 
-  for (const entry of sorted) {
+  for (const entry of sortedShorts) {
     if (clusterEntries.length > 0 && entry.start >= clusterMaxEnd) {
       flush();
       clusterMaxEnd = -1;
@@ -81,6 +130,7 @@ function layoutDayEvents(items: CalendarScheduleItem[]): PositionedEvent[] {
     clusterMaxEnd = Math.max(clusterMaxEnd, entry.end);
   }
   flush();
+
   return results;
 }
 
@@ -432,7 +482,7 @@ export function CalendarDetailPage({
                       const isLong = isLongSpanItem(pos.item);
                       return (
                         <button
-                          key={pos.item.id}
+                          key={`${pos.item.id}_${pos.top}`}
                           type="button"
                           className="calendar-tl-event"
                           data-color={pos.item.colorKey}
@@ -447,13 +497,23 @@ export function CalendarDetailPage({
                           onClick={() => onEditItem(pos.item)}
                           aria-label={`${pos.item.startTime} ${pos.item.title}`}
                         >
-                          <b>{pos.item.emoji ? `${pos.item.emoji} ` : ""}{pos.item.title}</b>
+                          <b>{pos.item.title}</b>
                           <span>
                             {pos.item.startTime}–{pos.item.endTime}
                             {pos.item.location ? ` · ${pos.item.location}` : ""}
-                            {isLong ? " · [长程主框架]" : ""}
                             {pos.item.source === "generated" ? " · AI" : ""}
                           </span>
+                          {isLong && pos.item.subNodes && pos.item.subNodes.length > 0 ? (
+                            <div className="calendar-tl-subnodes">
+                              {pos.item.subNodes.map((node, idx) => (
+                                <div key={idx} className="calendar-tl-subnode-item">
+                                  <span className="calendar-tl-subnode-dot">•</span>
+                                  {node.time ? <span className="calendar-tl-subnode-time">{node.time}</span> : null}
+                                  <span className="calendar-tl-subnode-text">{node.text}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
                         </button>
                       );
                     })}

@@ -64,25 +64,23 @@ function buildCalendarTriggerInstruction(ownerName: string, weekDates: string[])
     `请为${ownerName}生成 ${weekDates[0]} 到 ${weekDates[6]} 这一周的完整详细日程安排。`,
     "【规范要求】",
     "1. 标签规范：每条日程的标题开头必须带标签，格式为：【事态属性/时间跨度/发生模式】，其中：",
-    "   - 事态属性：正务 或 闲娱",
-    "   - 时间跨度：短时 或 长程",
-    "   - 发生模式：临起 或 预筹",
-    "2. 详细要素：标题必须具体明确，必须包含以下5大要素：",
-    "   - 出行/交通方式（如：乘JR新干线721次、打车、步行、驾车等）",
-    "   - 同行人（如：携团队、与XX同行、独行）",
-    "   - 目的地（精确到活动范围，如：东京至京都、京都府厅）",
-    "   - 具体事项（如：办理文旅产业联动共建合作项目备案事宜）",
-    "   - 预计耗时（短时事件必须精确到小时和整数分钟；长程事件说明天数/时间段）",
-    "   - 示例：【正务/长程/预筹】乘JR新干线721次东京至京都，携团队前往京都府厅办理文旅产业联动共建合作项目备案事宜，预计耗时三天。",
-    "3. 长程与短时联动（父子层级）：",
-    "   - 遇到多日出差、旅行、项目实施等，须先生成一条【长程】日程主卡片（如 span=长程）。",
-    "   - 长程如果跨多天，每天长程主标题须体现当天阶段目标（如：【正务/长程/预筹】京都府厅递交备案材料，开展首轮业务磋商）。",
-    "   - 在长程时间段内发生的具体时刻节点，生成为【短时】日程（如 span=短时，精确到 HH:MM 时间点）。",
-    "4. 输出格式（每行一条 Pipe 分隔）：",
-    "   YYYY-MM-DD|开始时间|结束时间|地点|属性(正务/闲娱)|跨度(短时/长程)|模式(临起/预筹)|emoji|标题",
+    "   - 事态属性：正务 或 闲娱（是否硬性必须落实）",
+    "   - 时间跨度：短时 或 长程（【长程】必须跨越日期；一天内办结的必须是【短时】）",
+    "   - 发生模式：临起 或 预筹（是否提前得知或具备心理预期）",
+    "2. 标题要素精简与自然化：",
+    "   - 出行方式：默认步行，步行时忽略不写；乘新干线、打车、公交等才注明工具及路线班次。",
+    "   - 同行者：默认独行，独行时不写；有第二人及以上时自然表达（如“携团队”、“和B去游泳”），不写“与XX同行”。",
+    "   - 地点：标题中只保留核心地点/地标（如“京都府厅”、“马尔利咖啡馆”）；详细层级地址（如“东京都｜涩谷区…｜1层”）写在地点字段中。",
+    "   - 耗时：不直写入标题末尾，由模块起止时间体现。",
+    "   - 示例：【正务/长程/预筹】携团队赴京都办理文旅产业联动共建项目备案公务",
+    "3. 长程与短时层级（总分关系与独立打断）：",
+    "   - 长程卡片下属的子事项（同一主题的推进阶段），直接以竖向子节点形式附在长程卡片内部，用换行加“•”组织，不单独生成小卡片。",
+    "   - 若在长程跨度期间发生与长程截然不同的独立短时事项，长程在该时间段中断让位，生成独立短时卡片；短时结束后长程恢复。",
+    "4. 输出格式（每行一条 Pipe 分隔，无 emoji）：",
+    "   YYYY-MM-DD|开始时间|结束时间|详细地点|属性(正务/闲娱)|跨度(短时/长程)|模式(临起/预筹)|主标题|子节点列表(可选，多个用;;分隔，每个为 HH:MM 进展描述)",
     "   例如：",
-    "   2023-09-12|13:00|18:00|京都|正务|长程|预筹|💼|【正务/长程/预筹】乘JR新干线721次东京至京都，携团队前往京都府厅办理文旅产业联动共建合作项目备案事宜，预计耗时三天。",
-    "   2023-09-12|13:00|15:15|东京至京都|正务|短时|预筹|🚆|【正务/短时/预筹】乘JR新干线721次由东京出发奔赴京都，携团队同行，预计耗时2小时15分钟。",
+    "   2023-09-12|13:00|21:00|京都府｜上京区薮之内町｜京都府厅|正务|长程|预筹|【正务/长程/预筹】携团队赴京都办理文旅产业联动共建项目备案公务|13:00 乘JR新干线721次由东京奔赴京都;;15:15 入住市内商务驻地，整理备案全套申报材料;;17:00 团队内部核对文书、磋商次日对接流程",
+    "   2023-09-13|09:00|13:00|东京都｜涩谷区宇田川町4-26｜马尔利咖啡馆|正务|短时|临起|【正务/短时/临起】与合作方紧急会谈项目预算调整",
   ].join("\n");
 }
 
@@ -132,7 +130,9 @@ function parseScheduleLines(rawText: string, weekStart: string): CalendarSchedul
     let emoji = "";
     let title = "";
 
-    if (parts.length >= 9) {
+    let subNodes: import("./calendar-types").CalendarSubNode[] | undefined;
+
+    if (parts.length >= 8) {
       date = parts[0];
       startTime = normalizeTime(parts[1]) || parts[1];
       endTime = normalizeTime(parts[2]) || parts[2];
@@ -140,8 +140,18 @@ function parseScheduleLines(rawText: string, weekStart: string): CalendarSchedul
       attribute = (parts[4] === "正务" || parts[4] === "闲娱") ? parts[4] : undefined;
       span = (parts[5] === "短时" || parts[5] === "长程") ? parts[5] : undefined;
       mode = (parts[6] === "临起" || parts[6] === "预筹") ? parts[6] : undefined;
-      emoji = sanitizeScheduleEmoji(parts[7]);
-      title = parts.slice(8).join("|");
+      title = parts[7];
+      if (parts[8]) {
+        const rawSub = parts.slice(8).join("|");
+        subNodes = rawSub.split(";;").map(s => {
+          const trimmed = s.trim().replace(/^[•\-\*]\s*/, "");
+          const timeMatch = trimmed.match(/^(\d{1,2}:\d{2})\s*(.*)$/);
+          if (timeMatch) {
+            return { time: timeMatch[1], text: timeMatch[2] };
+          }
+          return { text: trimmed };
+        }).filter(node => node.text);
+      }
     } else if (parts.length >= 6) {
       date = parts[0];
       // 检查 parts[1] 是周几还是 startTime
@@ -184,6 +194,7 @@ function parseScheduleLines(rawText: string, weekStart: string): CalendarSchedul
       attribute,
       span,
       mode,
+      subNodes,
       emoji,
     });
   }
