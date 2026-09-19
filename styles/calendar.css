@@ -707,61 +707,7 @@
   flex-shrink: 0;
 }
 
-/* 长程日程跨度背景与高亮框 */
-.calendar-tl-event[data-span="long"] {
-  border-left-width: 6px !important;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  font-weight: 700;
-  opacity: 0.96;
-}
 
-.calendar-tl-event[data-span="long"] b {
-  font-size: calc(13px * var(--app-text-scale, 1));
-  line-height: 1.3;
-}
-
-/* 长程卡片内部竖向子节点（• 时间段/进展） */
-.calendar-tl-subnodes {
-  margin-top: 6px;
-  padding-top: 5px;
-  border-top: 1px dashed rgba(0, 0, 0, 0.1);
-  display: flex;
-  flex-direction: column;
-  gap: 3.5px;
-}
-
-.calendar-tl-subnode-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 5px;
-  font-size: calc(11px * var(--app-text-scale, 1));
-  font-weight: 400;
-  color: var(--c-calendar-sub);
-  line-height: 1.35;
-  opacity: 0.88;
-}
-
-.calendar-tl-subnode-dot {
-  flex-shrink: 0;
-  font-weight: 700;
-  color: var(--ev-fg);
-  font-size: 13px;
-  line-height: 1;
-  transform: translateY(-1px);
-}
-
-.calendar-tl-subnode-time {
-  flex-shrink: 0;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  opacity: 0.95;
-}
-
-.calendar-tl-subnode-text {
-  flex: 1;
-  word-break: break-word;
-}
 
 .calendar-tl-event span {
   flex-shrink: 1;

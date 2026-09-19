@@ -163,7 +163,7 @@ export function replaceCalendarWeekItems(
 ): CalendarWeekPlan {
   const existing = loadCalendarWeekPlan(ownerType, ownerId, weekStart);
   const plan: CalendarWeekPlan = {
-    id: existing?.id ?? `calendar_week_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: existing?.id ?? `calendar_item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     ownerType,
     ownerId,
     weekStart,
@@ -190,11 +190,6 @@ export function upsertCalendarScheduleItem(
     endTime: item.endTime,
     location: item.location.trim(),
     title: item.title.trim(),
-    attribute: item.attribute,
-    span: item.span,
-    mode: item.mode,
-    parentId: item.parentId,
-    subNodes: item.subNodes,
     emoji: sanitizeScheduleEmoji(item.emoji),
     colorKey: item.colorKey || pickScheduleColorKey(item.startTime),
     source: item.source,
@@ -322,17 +317,11 @@ export function buildCalendarScheduleMarker(
 
 export function normalizeGeneratedScheduleItems(
   rawItems: Array<{
-    id?: string;
     date: string;
     startTime: string;
     endTime: string;
     location: string;
     title: string;
-    attribute?: import("./calendar-types").CalendarScheduleAttribute;
-    span?: import("./calendar-types").CalendarScheduleSpan;
-    mode?: import("./calendar-types").CalendarScheduleMode;
-    parentId?: string;
-    subNodes?: import("./calendar-types").CalendarSubNode[];
     emoji?: string;
     colorKey?: CalendarColorKey;
   }>,
@@ -341,17 +330,13 @@ export function normalizeGeneratedScheduleItems(
   return sortScheduleItems(
     rawItems
       .map(item => ({
-        id: item.id || `calendar_item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        id: `calendar_item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         date: item.date,
         weekday: getWeekdayLabel(item.date),
         startTime: normalizeTime(item.startTime) || item.startTime,
         endTime: normalizeTime(item.endTime) || item.endTime,
         location: item.location.trim(),
         title: item.title.trim(),
-        attribute: item.attribute,
-        span: item.span,
-        mode: item.mode,
-        parentId: item.parentId,
         emoji: sanitizeScheduleEmoji(item.emoji),
         colorKey: isCalendarColorKey(item.colorKey) ? item.colorKey : pickScheduleColorKey(item.startTime),
         source: "generated" as const,

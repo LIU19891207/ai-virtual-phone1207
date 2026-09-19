@@ -61,26 +61,10 @@ function buildSyntheticUserCharacter(identity: UserIdentity | null): Character {
 
 function buildCalendarTriggerInstruction(ownerName: string, weekDates: string[]): string {
   return [
-    `请为${ownerName}生成 ${weekDates[0]} 到 ${weekDates[6]} 这一周的完整详细日程安排。`,
-    "【规范要求】",
-    "1. 标签规范：每条日程的标题开头必须带标签，格式为：【事态属性/时间跨度/发生模式】，其中：",
-    "   - 事态属性：正务 或 闲娱（是否硬性必须落实）",
-    "   - 时间跨度：短时 或 长程（【长程】必须跨越日期；一天内办结的必须是【短时】）",
-    "   - 发生模式：临起 或 预筹（是否提前得知或具备心理预期）",
-    "2. 标题要素精简与自然化：",
-    "   - 出行方式：默认步行，步行时忽略不写；乘新干线、打车、公交等才注明工具及路线班次。",
-    "   - 同行者：默认独行，独行时不写；有第二人及以上时自然表达（如“携团队”、“和B去游泳”），不写“与XX同行”。",
-    "   - 地点：标题中只保留核心地点/地标（如“京都府厅”、“马尔利咖啡馆”）；详细层级地址（如“东京都｜涩谷区…｜1层”）写在地点字段中。",
-    "   - 耗时：不直写入标题末尾，由模块起止时间体现。",
-    "   - 示例：【正务/长程/预筹】携团队赴京都办理文旅产业联动共建项目备案公务",
-    "3. 长程与短时层级（总分关系与独立打断）：",
-    "   - 长程卡片下属的子事项（同一主题的推进阶段），直接以竖向子节点形式附在长程卡片内部，用换行加“•”组织，不单独生成小卡片。",
-    "   - 若在长程跨度期间发生与长程截然不同的独立短时事项，长程在该时间段中断让位，生成独立短时卡片；短时结束后长程恢复。",
-    "4. 输出格式（每行一条 Pipe 分隔，无 emoji）：",
-    "   YYYY-MM-DD|开始时间|结束时间|详细地点|属性(正务/闲娱)|跨度(短时/长程)|模式(临起/预筹)|主标题|子节点列表(可选，多个用;;分隔，每个为 HH:MM 进展描述)",
-    "   例如：",
-    "   2023-09-12|13:00|21:00|京都府｜上京区薮之内町｜京都府厅|正务|长程|预筹|【正务/长程/预筹】携团队赴京都办理文旅产业联动共建项目备案公务|13:00 乘JR新干线721次由东京奔赴京都;;15:15 入住市内商务驻地，整理备案全套申报材料;;17:00 团队内部核对文书、磋商次日对接流程",
-    "   2023-09-13|09:00|13:00|东京都｜涩谷区宇田川町4-26｜马尔利咖啡馆|正务|短时|临起|【正务/短时/临起】与合作方紧急会谈项目预算调整",
+    `请为${ownerName}生成 ${weekDates[0]} 到 ${weekDates[6]} 这一周的日程安排。`,
+    "请参考已有日程，生成这一周的完整日程安排。",
+    "每行一条，格式：YYYY-MM-DD|周几|开始时间|结束时间|地点|emoji|事项。emoji 段填一个最贴合该事项的表情符号。",
+    "作息时间不受限制（早起、夜跑、通宵都可以安排），但每一天最多 5 条日程，宁缺毋滥。",
   ].join("\n");
 }
 
@@ -104,9 +88,6 @@ function parseScheduleLines(rawText: string, weekStart: string): CalendarSchedul
     endTime: string;
     location: string;
     title: string;
-    attribute?: import("./calendar-types").CalendarScheduleAttribute;
-    span?: import("./calendar-types").CalendarScheduleSpan;
-    mode?: import("./calendar-types").CalendarScheduleMode;
     emoji?: string;
   }> = [];
 
@@ -117,73 +98,29 @@ function parseScheduleLines(rawText: string, weekStart: string): CalendarSchedul
       .trim();
     if (!line.includes("|")) continue;
     const parts = line.split("|").map(part => part.trim());
-    
-    // 支持 9 段新格式: YYYY-MM-DD | startTime | endTime | location | attribute | span | mode | emoji | title
-    // 也兼容旧格式 (6或7段)
-    let date = "";
-    let startTime = "";
-    let endTime = "";
-    let location = "";
-    let attribute: import("./calendar-types").CalendarScheduleAttribute | undefined;
-    let span: import("./calendar-types").CalendarScheduleSpan | undefined;
-    let mode: import("./calendar-types").CalendarScheduleMode | undefined;
-    let emoji = "";
-    let title = "";
+    if (parts.length < 6) continue;
 
-    let subNodes: import("./calendar-types").CalendarSubNode[] | undefined;
-
-    if (parts.length >= 8) {
-      date = parts[0];
-      startTime = normalizeTime(parts[1]) || parts[1];
-      endTime = normalizeTime(parts[2]) || parts[2];
-      location = parts[3] === "无" ? "" : parts[3];
-      attribute = (parts[4] === "正务" || parts[4] === "闲娱") ? parts[4] : undefined;
-      span = (parts[5] === "短时" || parts[5] === "长程") ? parts[5] : undefined;
-      mode = (parts[6] === "临起" || parts[6] === "预筹") ? parts[6] : undefined;
-      title = parts[7];
-      if (parts[8]) {
-        const rawSub = parts.slice(8).join("|");
-        subNodes = rawSub.split(";;").map(s => {
-          const trimmed = s.trim().replace(/^[•\-\*]\s*/, "");
-          const timeMatch = trimmed.match(/^(\d{1,2}:\d{2})\s*(.*)$/);
-          if (timeMatch) {
-            return { time: timeMatch[1], text: timeMatch[2] };
-          }
-          return { text: trimmed };
-        }).filter(node => node.text);
-      }
-    } else if (parts.length >= 6) {
-      date = parts[0];
-      // 检查 parts[1] 是周几还是 startTime
-      const isPart1Time = /^\d{1,2}:\d{2}$/.test(parts[1]);
-      const timeIdx = isPart1Time ? 1 : 2;
-      startTime = normalizeTime(parts[timeIdx]) || parts[timeIdx];
-      endTime = normalizeTime(parts[timeIdx + 1]) || parts[timeIdx + 1];
-      location = parts[timeIdx + 2] === "无" ? "" : parts[timeIdx + 2];
-      
-      const remaining = parts.slice(timeIdx + 3);
-      if (remaining.length >= 2) {
-        emoji = sanitizeScheduleEmoji(remaining[0]);
-        title = remaining.slice(1).join("|");
-      } else {
-        title = remaining[0] || "";
-      }
-    }
-
+    const date = parts[0];
+    const startTime = normalizeTime(parts[2]);
+    const endTime = normalizeTime(parts[3]);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !weekDates.has(date)) continue;
     if (!startTime || !endTime || !isCalendarTimeRangeAllowed(startTime, endTime)) continue;
-    if (!title.trim()) continue;
 
-    // 从标题中提取 【属性/跨度/模式】 标签
-    const tagMatch = title.match(/^【(正务|闲娱)\/(短时|长程)\/(临起|预筹)】/);
-    if (tagMatch) {
-      attribute = attribute || (tagMatch[1] as import("./calendar-types").CalendarScheduleAttribute);
-      span = span || (tagMatch[2] as import("./calendar-types").CalendarScheduleSpan);
-      mode = mode || (tagMatch[3] as import("./calendar-types").CalendarScheduleMode);
-    } else if (attribute && span && mode) {
-      // 自动补全标题前缀
-      title = `【${attribute}/${span}/${mode}】${title}`;
+    const location = parts[4] === "无" ? "" : parts[4];
+    let emoji = "";
+    let title: string;
+    if (parts.length >= 7) {
+      const candidate = sanitizeScheduleEmoji(parts[5]);
+      if (candidate && Array.from(parts[5]).length <= 3) {
+        emoji = candidate;
+        title = parts.slice(6).join("|");
+      } else {
+        title = parts.slice(5).join("|");
+      }
+    } else {
+      title = parts[5];
     }
+    if (!title.trim()) continue;
 
     parsed.push({
       date,
@@ -191,66 +128,11 @@ function parseScheduleLines(rawText: string, weekStart: string): CalendarSchedul
       endTime,
       location,
       title,
-      attribute,
-      span,
-      mode,
-      subNodes,
       emoji,
     });
   }
 
-  // 硬核归并机制：按日期收敛短时与长程
-  const finalItems: typeof parsed = [];
-  const dateGroups = new Map<string, typeof parsed>();
-  for (const item of parsed) {
-    const list = dateGroups.get(item.date) || [];
-    list.push(item);
-    dateGroups.set(item.date, list);
-  }
-
-  for (const [_, dayItems] of dateGroups.entries()) {
-    const longItem = dayItems.find(i => i.span === "长程" || i.title.includes("长程"));
-    if (!longItem) {
-      finalItems.push(...dayItems);
-      continue;
-    }
-
-    const mergedSubNodes = [...(longItem.subNodes || [])];
-    const longStartMin = timeToMinutes(longItem.startTime);
-    const longEndMin = timeToMinutes(longItem.endTime);
-
-    for (const item of dayItems) {
-      if (item === longItem) continue;
-      const itemStartMin = timeToMinutes(item.startTime);
-      const itemEndMin = timeToMinutes(item.endTime);
-
-      // 只要处于长程时间范围内（无论是否标记为短时），除非它是跨天的新长程，否则一律强行合并为长程的内部 subNode！
-      if (itemStartMin >= longStartMin && itemEndMin <= longEndMin && item.span !== "长程") {
-        const cleanText = item.title.replace(/^【.*?】/, "").trim();
-        mergedSubNodes.push({
-          time: item.startTime,
-          text: cleanText,
-        });
-      } else {
-        finalItems.push(item);
-      }
-    }
-
-    // 按时间点去重与升序排序
-    const uniqueMap = new Map<string, string>();
-    for (const sub of mergedSubNodes) {
-      const key = `${sub.time || ""}_${sub.text}`;
-      uniqueMap.set(key, sub.text);
-    }
-    longItem.subNodes = Array.from(uniqueMap.entries()).map(([k, text]) => {
-      const time = k.split("_")[0];
-      return { time: time || undefined, text };
-    }).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
-
-    finalItems.push(longItem);
-  }
-
-  return normalizeGeneratedScheduleItems(finalItems);
+  return normalizeGeneratedScheduleItems(parsed);
 }
 
 async function resolveCalendarAssemblerInput(
@@ -351,8 +233,6 @@ export async function generateWeeklyCalendarSchedule(
   if (ownerType !== "character") {
     return { success: false, error: "用户日程不支持 AI 生成，请手动填写。" };
   }
-  // 先清掉本周旧的 AI 生成条目（保留手动条目），让随后的 marker 组装读不到旧结果——
-  // 否则旧日程会进提示词被模型原样照抄，"重新生成"永远一字不差。失败时恢复。
   const removedGenerated = clearGeneratedWeekItems(ownerType, ownerId, weekStart);
   const restoreRemoved = () => restoreCalendarWeekItems(ownerType, ownerId, weekStart, removedGenerated);
   try {
